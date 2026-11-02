@@ -21,9 +21,27 @@ class FeedState {
   /// Likes are optimistic and local until the backend exposes `POST /likes`.
   final Set<String> liked;
 
-  bool isLiked(String postId) => liked.contains(postId);
+  bool isLiked(String postId) {
+    if (liked.contains(postId)) return true;
+    final match = posts.where((p) => p.id == postId).firstOrNull;
+    return match?.userReaction != null;
+  }
 
-  int likeCount(PlacePost post) => post.likes + (isLiked(post.id) ? 1 : 0);
+  String? userReaction(String postId) {
+    final match = posts.where((p) => p.id == postId).firstOrNull;
+    return match?.userReaction ?? (liked.contains(postId) ? '❤️' : null);
+  }
+
+  int likeCount(PlacePost post) {
+    final livePost = posts.where((p) => p.id == post.id).firstOrNull ?? post;
+    if (livePost.reactions.isNotEmpty) {
+      return livePost.reactions.values.fold(0, (sum, count) => sum + count);
+    }
+    if (livePost.userReaction != null) {
+      return livePost.likes > 0 ? livePost.likes : 1;
+    }
+    return livePost.likes + (liked.contains(post.id) ? 1 : 0);
+  }
 
   static const Object _unset = Object();
 
@@ -67,10 +85,58 @@ class FeedController extends Notifier<FeedState> {
     }
   }
 
-  void toggleLike(String postId) {
+  void addPost(PlacePost post) {
+    state = state.copyWith(posts: [post, ...state.posts]);
+  }
+
+  void toggleReaction(String postId, String emoji) {
+    var found = false;
+    final updatedList = state.posts.map((post) {
+      if (post.id == postId) {
+        found = true;
+        return post.toggleReaction(emoji);
+      }
+      return post;
+    }).toList();
+
+    if (!found) return;
+
     final liked = {...state.liked};
-    if (!liked.remove(postId)) liked.add(postId);
-    state = state.copyWith(liked: liked);
+    final match = updatedList.firstWhere((p) => p.id == postId);
+    if (match.userReaction != null) {
+      liked.add(postId);
+    } else {
+      liked.remove(postId);
+    }
+
+    state = state.copyWith(posts: updatedList, liked: liked);
+
+    ref.read(feedRepositoryProvider).togglePostReaction(
+          postId: postId,
+          reaction: emoji,
+        );
+  }
+
+  void toggleLike(String postId) {
+    final current = state.userReaction(postId);
+    toggleReaction(postId, current ?? '❤️');
+  }
+
+  /// Adds a reaction from another user/traveler to simulate social activity.
+  void addTravelerReaction(String postId, [String emoji = '🔥']) {
+    final updatedList = state.posts.map((post) {
+      if (post.id == postId) {
+        final newReactions = Map<String, int>.from(post.reactions);
+        newReactions[emoji] = (newReactions[emoji] ?? 0) + 1;
+        final sum = newReactions.values.fold(0, (s, c) => s + c);
+        return post.copyWith(
+          reactions: newReactions,
+          likes: sum,
+        );
+      }
+      return post;
+    }).toList();
+    state = state.copyWith(posts: updatedList);
   }
 
   Future<void> toggleSave(Place place) =>
@@ -96,9 +162,10 @@ class FeedController extends Notifier<FeedState> {
           aspectRatio: aspectRatio,
           media: media,
         );
+    final cleanLiked = {...state.liked}..remove(post.id);
     state = state.copyWith(
       posts: [post, ...state.posts],
-      liked: {...state.liked, post.id},
+      liked: cleanLiked,
     );
     return post;
   }

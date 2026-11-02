@@ -84,6 +84,23 @@ class _NewPostScreenState extends ConsumerState<NewPostScreen> {
     _selectedPlace = widget.initialPlace ??
         (feedPosts.isNotEmpty ? feedPosts.first.place : null);
     _selectedMedia.clear();
+    if (_selectedPlace != null && feedPosts.isNotEmpty) {
+      final matchingPost = feedPosts.firstWhere(
+        (p) => p.place.id == _selectedPlace!.id,
+        orElse: () => feedPosts.first,
+      );
+      final mediaUrl = matchingPost.imageUrl ?? matchingPost.thumbnailUrl;
+      if (mediaUrl != null && mediaUrl.isNotEmpty) {
+        _selectedMedia.add(
+          SelectedMediaItem(
+            path: mediaUrl,
+            name: '${_selectedPlace!.name} Photo',
+            isVideo: false,
+            aspectRatio: 4 / 5,
+          ),
+        );
+      }
+    }
     _activeMediaIndex = 0;
     _imageUrlController.text = '';
   }
@@ -623,7 +640,7 @@ class _NewPostScreenState extends ConsumerState<NewPostScreen> {
                                         Text(
                                           searchQuery.isNotEmpty
                                               ? 'Add "$searchQuery"'
-                                              : 'Add custom',
+                                              : 'Add new tag place',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
@@ -910,11 +927,14 @@ class _NewPostScreenState extends ConsumerState<NewPostScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        Text(
-                          _categoryName(selectedCategory),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.primary,
-                            fontWeight: FontWeight.w700,
+                        Flexible(
+                          child: Text(
+                            _categoryName(selectedCategory),
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
@@ -970,15 +990,19 @@ class _NewPostScreenState extends ConsumerState<NewPostScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Location on Map',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
+                        Flexible(
+                          child: Text(
+                            'Location on Map',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         TextButton.icon(
                           style: TextButton.styleFrom(
                             visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           onPressed: () async {
                             final picked =
@@ -1007,7 +1031,7 @@ class _NewPostScreenState extends ConsumerState<NewPostScreen> {
                           icon: const Icon(Icons.map_rounded, size: 16),
                           label: Text(customLocation != null
                               ? 'Change Pin'
-                              : 'Drop Pin on Map'),
+                              : 'Drop Pin'),
                         ),
                       ],
                     ),
@@ -2361,8 +2385,11 @@ class _NewPostScreenState extends ConsumerState<NewPostScreen> {
                         GestureDetector(
                           onTap: _showMediaPicker,
                           child: Container(
-                            height: 190,
-                            padding: const EdgeInsets.all(16),
+                            constraints: const BoxConstraints(minHeight: 160),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                             decoration: BoxDecoration(
                               color: scheme.surfaceContainerHighest
                                   .withValues(alpha: 0.45),

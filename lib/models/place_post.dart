@@ -77,6 +77,8 @@ class PlacePost {
     this.videoUrl,
     this.aspectRatio,
     this.media,
+    this.reactions = const {},
+    this.userReaction,
     this.likes = 0,
     this.comments = 0,
     this.saves = 0,
@@ -92,11 +94,18 @@ class PlacePost {
   final String? videoUrl;
   final double? aspectRatio;
   final List<PostMediaItem>? media;
+  final Map<String, int> reactions;
+  final String? userReaction;
   final int likes;
   final int comments;
   final int saves;
   final DateTime createdAt;
   final int trendingScore;
+
+  int get totalReactions {
+    final sum = reactions.values.fold(0, (s, c) => s + c);
+    return sum > 0 ? sum : likes;
+  }
 
   bool get isVideo => videoUrl != null && videoUrl!.trim().isNotEmpty;
 
@@ -172,6 +181,41 @@ class PlacePost {
     return list;
   }
 
+  PlacePost toggleReaction(String emoji) {
+    final newReactions = Map<String, int>.from(reactions);
+    final prevReaction = userReaction;
+    String? newUserReaction;
+
+    if (prevReaction == emoji) {
+      final currentCount = newReactions[emoji] ?? 1;
+      if (currentCount <= 1) {
+        newReactions.remove(emoji);
+      } else {
+        newReactions[emoji] = currentCount - 1;
+      }
+      newUserReaction = null;
+    } else {
+      if (prevReaction != null && newReactions.containsKey(prevReaction)) {
+        final oldCount = newReactions[prevReaction] ?? 1;
+        if (oldCount <= 1) {
+          newReactions.remove(prevReaction);
+        } else {
+          newReactions[prevReaction] = oldCount - 1;
+        }
+      }
+      newReactions[emoji] = (newReactions[emoji] ?? 0) + 1;
+      newUserReaction = emoji;
+    }
+
+    final sum = newReactions.values.fold(0, (s, c) => s + c);
+    return copyWith(
+      reactions: newReactions,
+      userReaction: newUserReaction,
+      clearUserReaction: newUserReaction == null,
+      likes: sum,
+    );
+  }
+
   PlacePost copyWith({
     String? id,
     String? authorName,
@@ -182,6 +226,9 @@ class PlacePost {
     String? videoUrl,
     double? aspectRatio,
     List<PostMediaItem>? media,
+    Map<String, int>? reactions,
+    String? userReaction,
+    bool clearUserReaction = false,
     int? likes,
     int? comments,
     int? saves,
@@ -198,6 +245,9 @@ class PlacePost {
       videoUrl: videoUrl ?? this.videoUrl,
       aspectRatio: aspectRatio ?? this.aspectRatio,
       media: media ?? this.media,
+      reactions: reactions ?? Map<String, int>.from(this.reactions),
+      userReaction:
+          clearUserReaction ? null : (userReaction ?? this.userReaction),
       likes: likes ?? this.likes,
       comments: comments ?? this.comments,
       saves: saves ?? this.saves,
@@ -256,6 +306,16 @@ class PlacePost {
     final rawSaves = json['saves'] ?? json['save_count'] ?? 0;
     final rawScore = json['trending_score'] ?? json['trendingScore'] ?? rawLikes;
 
+    final rawReactions = json['reactions_summary'] ?? json['reactions'];
+    final reactions = <String, int>{};
+    if (rawReactions is Map) {
+      rawReactions.forEach((key, value) {
+        if (value is num) {
+          reactions['$key'] = value.toInt();
+        }
+      });
+    }
+
     return PlacePost(
       id: '${json['id'] ?? 'post-${place.id}'}',
       authorName: '${authorMap?['name'] ?? json['author_name'] ?? 'Traveler'}',
@@ -268,6 +328,8 @@ class PlacePost {
       videoUrl: rawVideo is String && rawVideo.isNotEmpty ? rawVideo : null,
       aspectRatio: aspectRatio,
       media: parsedMedia,
+      reactions: reactions,
+      userReaction: json['user_reaction'] as String?,
       likes: rawLikes is num ? rawLikes.toInt() : 0,
       comments: rawComments is num ? rawComments.toInt() : 0,
       saves: rawSaves is num ? rawSaves.toInt() : 0,
@@ -289,6 +351,8 @@ class PlacePost {
         if (aspectRatio != null) 'aspect_ratio': aspectRatio,
         if (media != null && media!.isNotEmpty)
           'media': media!.map((m) => m.toJson()).toList(),
+        'reactions': reactions,
+        if (userReaction != null) 'user_reaction': userReaction,
         'likes': likes,
         'comments': comments,
         'saves': saves,

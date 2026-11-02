@@ -57,8 +57,26 @@ class _TelegramAuthDialogState extends ConsumerState<TelegramAuthDialog> {
 
       if (!mounted) return;
       if (success) {
+        final messenger = ScaffoldMessenger.maybeOf(context);
         Navigator.of(context).pop(true);
-        showAppSnackBar(context, 'Connected with Telegram @$handle!');
+        if (messenger != null) {
+          messenger.hideCurrentSnackBar();
+          messenger.showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF7FE0C7),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('Connected with Telegram @$handle!')),
+                ],
+              ),
+            ),
+          );
+        }
       } else {
         setState(() => _isConnecting = false);
         final err = ref.read(authProvider).error ?? 'Could not connect Telegram.';

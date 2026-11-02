@@ -221,6 +221,106 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
     }
   }
 
+  void _simulateTraveler() {
+    ref.read(feedProvider.notifier).addTravelerReaction(widget.post.id, '🔥');
+
+    final travelerComment = PostComment(
+      id: 'c-traveler-${DateTime.now().millisecondsSinceEpoch}',
+      authorName: 'Sokha Traveler',
+      text: 'Such a breathtaking place in Cambodia! ✨',
+      createdAt: DateTime.now(),
+      reactions: {'❤️': 1, '🔥': 1},
+    );
+
+    setState(() {
+      _comments = [travelerComment, ..._comments];
+    });
+
+    ref.read(feedProvider.notifier).incrementCommentCount(widget.post.id);
+
+    ref.read(notificationsProvider.notifier).addNotification(
+      title: 'Sokha Traveler commented on this post',
+      message: '"Such a breathtaking place in Cambodia! ✨"',
+      type: NotificationType.comment,
+      placeId: widget.post.place.id,
+      postId: widget.post.id,
+    );
+
+    showAppSnackBar(
+      context,
+      'Traveler reacted 🔥 and commented on this post!',
+    );
+  }
+
+  void _showPostReactionPicker(BuildContext context, PlacePost post) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    const emojis = ['❤️', '👍', '🔥', '👏', '😍', '🎉'];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'React to ${post.place.name}',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: emojis.map((emoji) {
+                  final isSelected = post.userReaction == emoji;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      ref
+                          .read(feedProvider.notifier)
+                          .toggleReaction(post.id, emoji);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? scheme.primary.withValues(alpha: 0.15)
+                            : null,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        emoji,
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _submitComment() async {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
@@ -544,32 +644,64 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     // Likes, Comments & Stats Pill Bar
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
                         children: [
-                          IconButton.filledTonal(
-                            style: IconButton.styleFrom(
-                              backgroundColor: isLiked
-                                  ? const Color(0xFFE11D48).withValues(alpha: 0.12)
-                                  : null,
-                            ),
-                            icon: Icon(
-                              isLiked
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              color: isLiked
-                                  ? const Color(0xFFE11D48)
-                                  : scheme.onSurfaceVariant,
-                            ),
-                            onPressed: () => ref
-                                .read(feedProvider.notifier)
-                                .toggleLike(post.id),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            formatCompactCount(likeCount),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+                          Builder(
+                            builder: (context) {
+                              final userReaction =
+                                  feed.userReaction(post.id) ?? post.userReaction;
+                              final hasReacted = userReaction != null || isLiked;
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  GestureDetector(
+                                    onLongPress: () =>
+                                        _showPostReactionPicker(context, post),
+                                    child: IconButton.filledTonal(
+                                      tooltip: 'Tap to like, long-press to react',
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: hasReacted
+                                            ? const Color(0xFFE11D48)
+                                                .withValues(alpha: 0.12)
+                                            : null,
+                                      ),
+                                      icon: hasReacted &&
+                                              userReaction != null &&
+                                              userReaction != '❤️'
+                                          ? Text(
+                                              userReaction,
+                                              style:
+                                                  const TextStyle(fontSize: 20),
+                                            )
+                                          : Icon(
+                                              hasReacted
+                                                  ? Icons.favorite_rounded
+                                                  : Icons.favorite_border_rounded,
+                                              color: hasReacted
+                                                  ? const Color(0xFFE11D48)
+                                                  : scheme.onSurfaceVariant,
+                                            ),
+                                      onPressed: () => ref
+                                          .read(feedProvider.notifier)
+                                          .toggleLike(post.id),
+                                    ),
+                                  ),
+                                  // For new posts or posts with 0 reactions: hide count number (by default 0)
+                                  if (likeCount > 0) ...[
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      formatCompactCount(likeCount),
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
                           ),
                           const SizedBox(width: 18),
                           Icon(
@@ -584,7 +716,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 20),
                           Text(
                             '${post.saves} saves',
                             style: theme.textTheme.labelMedium?.copyWith(
@@ -593,6 +725,7 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                           ),
                         ],
                       ),
+                    ),
                     ),
                     const SizedBox(height: 14),
 
@@ -793,14 +926,30 @@ class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
                     // =========================================================
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Comments (${_comments.length})',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Comments (${_comments.length})',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: _simulateTraveler,
+                            icon: const Icon(Icons.bolt_rounded, size: 14),
+                            label: const Text(
+                              'Simulate traveler',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 8),

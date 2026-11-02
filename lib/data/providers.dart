@@ -26,24 +26,37 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 });
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  final settings = ref.watch(settingsProvider);
   final sessionStore = ref.watch(sessionStoreProvider);
+  if (settings.demoMode) {
+    return DemoAuthRepository(sessionStore);
+  }
   final client = ref.watch(apiClientProvider);
   return ApiAuthRepository(client, sessionStore);
 });
 
 final placesRepositoryProvider = Provider<PlacesRepository>((ref) {
+  final settings = ref.watch(settingsProvider);
+  if (settings.demoMode) {
+    return DemoPlacesRepository();
+  }
   return ApiPlacesRepository(ref.watch(apiClientProvider));
 });
 
 final feedRepositoryProvider = Provider<FeedRepository>((ref) {
+  final settings = ref.watch(settingsProvider);
+  if (settings.demoMode) {
+    return DemoFeedRepository();
+  }
   return ApiFeedRepository(ref.watch(apiClientProvider));
 });
 
 final favoritesRepositoryProvider = Provider<FavoritesRepository>((ref) {
+  final settings = ref.watch(settingsProvider);
   return FavoritesRepository(
     store: FavoritesStore(ref.watch(sharedPreferencesProvider)),
     client: ref.watch(apiClientProvider),
-    demoMode: false,
+    demoMode: settings.demoMode,
   );
 });
 

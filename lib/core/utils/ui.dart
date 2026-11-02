@@ -5,8 +5,10 @@ void showAppSnackBar(
   String message, {
   bool isError = false,
 }) {
+  if (!context.mounted) return;
   final scheme = Theme.of(context).colorScheme;
-  final messenger = ScaffoldMessenger.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
     SnackBar(

@@ -42,6 +42,12 @@ abstract class FeedRepository {
     required String commentId,
     required String reaction,
   });
+
+  /// Reacts or toggles a reaction on a post.
+  Future<Map<String, dynamic>> togglePostReaction({
+    required String postId,
+    required String reaction,
+  });
 }
 
 /// Talks to the Laravel proxy: `GET /feed?sort=trending&limit=20`.
@@ -170,6 +176,23 @@ class ApiFeedRepository implements FeedRepository {
     );
     return res is Map ? Map<String, dynamic>.from(res) : {};
   }
+
+  @override
+  Future<Map<String, dynamic>> togglePostReaction({
+    required String postId,
+    required String reaction,
+  }) async {
+    try {
+      final res = await _client.post(
+        '/feed/posts/$postId/reaction',
+        data: {'reaction': reaction.trim()},
+      );
+      return res is Map ? Map<String, dynamic>.from(res) : {};
+    } catch (_) {
+      // Best-effort local update
+    }
+    return {'status': 'ok', 'reaction': reaction};
+  }
 }
 
 /// Serves the bundled sample feed while the backend is unavailable.
@@ -208,7 +231,8 @@ class DemoFeedRepository implements FeedRepository {
       videoUrl: videoUrl,
       aspectRatio: aspectRatio,
       media: media,
-      likes: 1,
+      likes: 0,
+      reactions: const {},
       comments: 0,
       saves: 0,
       trendingScore: 99,
@@ -216,6 +240,20 @@ class DemoFeedRepository implements FeedRepository {
     );
     DemoData.posts.insert(0, newPost);
     return newPost;
+  }
+
+  @override
+  Future<Map<String, dynamic>> togglePostReaction({
+    required String postId,
+    required String reaction,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final index = DemoData.posts.indexWhere((p) => p.id == postId);
+    if (index != -1) {
+      final updated = DemoData.posts[index].toggleReaction(reaction);
+      DemoData.posts[index] = updated;
+    }
+    return {'status': 'ok', 'reaction': reaction};
   }
 
   @override
@@ -237,7 +275,27 @@ class DemoFeedRepository implements FeedRepository {
   @override
   Future<List<PostComment>> fetchComments(String postId) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    return _demoComments[postId] ?? const [];
+    if (_demoComments.containsKey(postId)) {
+      return _demoComments[postId]!;
+    }
+    final initial = [
+      PostComment(
+        id: 'c-$postId-1',
+        authorName: 'Sophea Pich',
+        text: 'The sunrise here is truly magical! Great capture.',
+        createdAt: DateTime.now().subtract(const Duration(hours: 3)),
+        reactions: const {'❤️': 2, '👍': 1},
+      ),
+      PostComment(
+        id: 'c-$postId-2',
+        authorName: 'Dara Nimol',
+        text: "Visiting again next weekend, can't wait!",
+        createdAt: DateTime.now().subtract(const Duration(hours: 1)),
+        reactions: const {'👏': 2},
+      ),
+    ];
+    _demoComments[postId] = initial;
+    return initial;
   }
 
   @override

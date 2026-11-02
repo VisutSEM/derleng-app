@@ -564,18 +564,42 @@ class PostCard extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
             child: Row(
               children: [
-                _ActionButton(
-                  icon: liked
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  label: formatCompactCount(feed.likeCount(post)),
-                  color: liked ? const Color(0xFFE11D48) : scheme.onSurfaceVariant,
-                  onTap: () =>
-                      ref.read(feedProvider.notifier).toggleLike(post.id),
+                Builder(
+                  builder: (context) {
+                    final likeCount = feed.likeCount(post);
+                    final userReaction =
+                        feed.userReaction(post.id) ?? post.userReaction;
+                    final hasReacted = userReaction != null || liked;
+                    // For new posts or posts with 0 reactions: no reaction count number by default (0 is hidden)
+                    final label =
+                        likeCount > 0 ? formatCompactCount(likeCount) : null;
+
+                    return _ActionButton(
+                      icon: hasReacted
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      customLeading: hasReacted &&
+                              userReaction != null &&
+                              userReaction != '❤️'
+                          ? Text(
+                              userReaction,
+                              style: const TextStyle(fontSize: 18),
+                            )
+                          : null,
+                      label: label,
+                      color: hasReacted
+                          ? const Color(0xFFE11D48)
+                          : scheme.onSurfaceVariant,
+                      onTap: () =>
+                          ref.read(feedProvider.notifier).toggleLike(post.id),
+                      onLongPress: () =>
+                          _showPostReactionPicker(context, ref, post),
+                    );
+                  },
                 ),
                 _ActionButton(
                   icon: Icons.mode_comment_outlined,
-                  label: formatCompactCount(post.comments),
+                  label: post.comments > 0 ? formatCompactCount(post.comments) : null,
                   color: scheme.onSurfaceVariant,
                   onTap: () => PostDetailScreen.show(
                     context,
@@ -598,6 +622,79 @@ class PostCard extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showPostReactionPicker(
+    BuildContext context,
+    WidgetRef ref,
+    PlacePost post,
+  ) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    const emojis = ['❤️', '👍', '🔥', '👏', '😍', '🎉'];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'React to ${post.place.name}',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: emojis.map((emoji) {
+                  final isSelected = post.userReaction == emoji;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      ref
+                          .read(feedProvider.notifier)
+                          .toggleReaction(post.id, emoji);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? scheme.primary.withValues(alpha: 0.15)
+                            : null,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        emoji,
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -739,34 +836,42 @@ class _MediaBadge extends StatelessWidget {
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.icon,
-    required this.label,
+    this.label,
     required this.color,
     this.onTap,
+    this.onLongPress,
+    this.customLeading,
   });
 
   final IconData icon;
-  final String label;
+  final String? label;
   final Color color;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final Widget? customLeading;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 19, color: color),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
+            customLeading ?? Icon(icon, size: 19, color: color),
+            if (label != null && label!.isNotEmpty) ...[
+              const SizedBox(width: 5),
+              Text(
+                label!,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
           ],
         ),
       ),

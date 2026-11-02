@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers.dart';
 import '../../models/app_notification.dart';
 import '../auth/auth_controller.dart';
+import '../settings/settings_controller.dart';
 
 class NotificationsState {
   const NotificationsState({
@@ -23,11 +24,42 @@ class NotificationsState {
 }
 
 class NotificationsController extends Notifier<NotificationsState> {
+  static final List<AppNotification> _defaultDemoNotifications = [
+    AppNotification(
+      id: 'notif-demo-1',
+      title: 'Piseth Seng liked your story',
+      message: 'Liked your post about Royal Palace',
+      type: NotificationType.like,
+      createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
+      isRead: false,
+    ),
+    AppNotification(
+      id: 'notif-demo-2',
+      title: 'Bopha Chen commented on your post',
+      message: '"Stunning angle! Which camera did you use?"',
+      type: NotificationType.comment,
+      createdAt: DateTime.now().subtract(const Duration(hours: 1)),
+      isRead: false,
+    ),
+    AppNotification(
+      id: 'notif-demo-3',
+      title: 'Trending near you',
+      message: 'Angkor Wat is receiving high visitor attention this morning.',
+      type: NotificationType.trending,
+      createdAt: DateTime.now().subtract(const Duration(hours: 3)),
+      isRead: true,
+    ),
+  ];
+
   @override
   NotificationsState build() {
     ref.watch(authProvider);
-    Future.microtask(fetchLiveNotifications);
-    return const NotificationsState(items: []);
+    final settings = ref.watch(settingsProvider);
+    if (!settings.demoMode) {
+      Future.microtask(fetchLiveNotifications);
+      return const NotificationsState(items: []);
+    }
+    return NotificationsState(items: List.of(_defaultDemoNotifications));
   }
 
   Future<void> fetchLiveNotifications() async {

@@ -18,12 +18,21 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> {
   static const int _exploreIndex = 1;
+  final GlobalKey<HomeScreenState> _homeKey = GlobalKey<HomeScreenState>();
 
   int _index = 0;
 
   void _openPlace(Place place) {
     ref.read(exploreProvider.notifier).selectPlace(place);
     setState(() => _index = _exploreIndex);
+  }
+
+  void _onDestinationSelected(int index) {
+    if (index == 0 && _index == 0) {
+      _homeKey.currentState?.scrollToTopOrRefresh();
+    } else {
+      setState(() => _index = index);
+    }
   }
 
   @override
@@ -35,6 +44,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         index: _index,
         children: [
           HomeScreen(
+            key: _homeKey,
             onOpenPlace: _openPlace,
             onExplore: () => setState(() => _index = _exploreIndex),
             onOpenProfile: () => setState(() => _index = 3),
@@ -49,7 +59,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (index) => setState(() => _index = index),
+        onDestinationSelected: _onDestinationSelected,
         destinations: [
           const NavigationDestination(
             icon: Icon(Icons.home_outlined),

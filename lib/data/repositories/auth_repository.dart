@@ -236,29 +236,40 @@ class ApiAuthRepository implements AuthRepository {
     String? photoUrl,
     String? telegramId,
   }) async {
+    final cleanUsername = username?.trim().replaceAll('@', '') ?? 'traveler';
+    final handle = cleanUsername.isNotEmpty ? cleanUsername : 'traveler';
+    final displayName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : (handle.isNotEmpty ? handle : 'Telegram Traveler');
+    final avatar = photoUrl ??
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80';
+    final effectiveTelegramId =
+        (telegramId != null && telegramId.trim().isNotEmpty)
+            ? telegramId.trim()
+            : 'tg_${handle.toLowerCase().replaceAll(RegExp(r'[^a-z0-9_]'), '')}_${handle.hashCode.abs()}';
+
     try {
       final data = await _client.post('/auth/telegram', data: {
-        'username': username,
-        'name': name,
-        'photo_url': photoUrl,
-        'telegram_id': telegramId,
+        'username': handle,
+        'name': displayName,
+        'photo_url': avatar,
+        'telegram_id': effectiveTelegramId,
       });
       return await _persist(data);
     } catch (_) {
-      final handle = username?.trim().replaceAll('@', '') ?? 'traveler';
-      final displayName = (name != null && name.trim().isNotEmpty)
-          ? name.trim()
-          : (handle.isNotEmpty ? handle : 'Telegram Traveler');
-      return await _persist(
-        AppUser(
-          id: telegramId ?? 'tg-${DateTime.now().millisecondsSinceEpoch}',
-          email: '$handle@telegram.org',
-          name: displayName,
-          photoUrl: photoUrl ??
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-          provider: 'telegram',
-        ),
+      final fallbackUser = AppUser(
+        id: effectiveTelegramId,
+        email: '$handle@telegram.org',
+        name: displayName,
+        photoUrl: avatar,
+        provider: 'telegram',
       );
+      final session = AuthSession(
+        user: fallbackUser,
+        token: 'tg-token-${DateTime.now().millisecondsSinceEpoch}',
+      );
+      await _store.save(session);
+      return session;
     }
   }
 
@@ -321,6 +332,18 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   Future<AuthSession> _persist(dynamic data) async {
+    if (data is AuthSession) {
+      await _store.save(data);
+      return data;
+    }
+    if (data is AppUser) {
+      final session = AuthSession(
+        user: data,
+        token: 'token-${DateTime.now().millisecondsSinceEpoch}',
+      );
+      await _store.save(session);
+      return session;
+    }
     final map = data is Map
         ? (data['data'] is Map
             ? Map<String, dynamic>.from(data['data'] as Map)

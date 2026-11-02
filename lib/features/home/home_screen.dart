@@ -16,7 +16,7 @@ import 'widgets/post_card.dart';
 import 'widgets/post_detail_screen.dart';
 
 /// Home tab: trending places shared by the community.
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({
     super.key,
     required this.onOpenPlace,
@@ -29,23 +29,88 @@ class HomeScreen extends ConsumerWidget {
   final VoidCallback? onOpenProfile;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => HomeScreenState();
+}
+
+class HomeScreenState extends ConsumerState<HomeScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey =
+      GlobalKey<RefreshIndicatorState>();
+  bool _showScrollToTop = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final show = _scrollController.offset > 300;
+    if (show != _showScrollToTop) {
+      setState(() => _showScrollToTop = show);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// When tapped:
+  /// - If the list is scrolled down (offset > 0.0), smoothly scroll back to top.
+  /// - If already at the top (offset <= 0.0), programmatically trigger the RefreshIndicator.
+  void scrollToTopOrRefresh() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.offset > 0.0) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _refreshIndicatorKey.currentState?.show();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final feed = ref.watch(feedProvider);
     final user = ref.watch(authProvider).user;
     final featured = feed.posts.take(3).toList(growable: false);
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => CreatePostSheet.show(context),
-        icon: const Icon(Icons.add_photo_alternate_rounded),
-        label: const Text('Post place'),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (_showScrollToTop) ...[
+            FloatingActionButton.small(
+              heroTag: 'home_scroll_to_top_btn',
+              onPressed: scrollToTopOrRefresh,
+              tooltip: 'Home (Scroll to top)',
+              child: const Icon(Icons.arrow_upward_rounded),
+            ),
+            const SizedBox(height: 10),
+          ],
+          FloatingActionButton.extended(
+            heroTag: 'post_place_btn',
+            onPressed: () => CreatePostSheet.show(context),
+            icon: const Icon(Icons.add_photo_alternate_rounded),
+            label: const Text('Post place'),
+          ),
+        ],
       ),
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
+          key: _refreshIndicatorKey,
           onRefresh: () => ref.read(feedProvider.notifier).refresh(),
           child: ListView(
+            controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 80),
             children: [
@@ -53,9 +118,9 @@ class HomeScreen extends ConsumerWidget {
                 name: user?.firstName ?? 'traveler',
                 initials: user?.initials ?? 'D',
                 photoUrl: user?.photoUrl,
-                onOpenProfile: onOpenProfile,
+                onOpenProfile: widget.onOpenProfile,
                 onPost: () => CreatePostSheet.show(context),
-                onOpenPlace: onOpenPlace,
+                onOpenPlace: widget.onOpenPlace,
               ),
               const SizedBox(height: 14),
               _SharePlacePrompt(
@@ -82,7 +147,7 @@ class HomeScreen extends ConsumerWidget {
                   message:
                       'Be the first to share a place. Trending posts from other travellers will show up here.',
                   actionLabel: 'Explore places',
-                  onAction: onExplore,
+                  onAction: widget.onExplore,
                 )
               else ...[
                 if (feed.error != null) ...[
@@ -113,7 +178,7 @@ class HomeScreen extends ConsumerWidget {
                         onTap: () => PostDetailScreen.show(
                           context,
                           post: featured[index],
-                          onOpenPlace: onOpenPlace,
+                          onOpenPlace: widget.onOpenPlace,
                           rank: index + 1,
                         ),
                       ),
@@ -130,7 +195,7 @@ class HomeScreen extends ConsumerWidget {
                   PostCard(
                     post: feed.posts[index],
                     rank: index + 1,
-                    onOpenPlace: onOpenPlace,
+                    onOpenPlace: widget.onOpenPlace,
                   ),
                 if (feed.loading)
                   Padding(

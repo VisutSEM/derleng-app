@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../models/geo_point.dart';
 
 /// Compile-time configuration.
@@ -5,20 +7,25 @@ import '../../models/geo_point.dart';
 /// Override with:
 /// `flutter run --dart-define=API_BASE_URL=https://api.example.com/api
 ///   --dart-define=DEMO_MODE=false --dart-define=GOOGLE_MAPS_API_KEY=...`
+///
+/// Or with:
+/// `flutter run --dart-define-from-file=env.json`
 class AppConfig {
   const AppConfig._();
 
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000/api',
+    defaultValue: 'http://192.168.8.179:8000/api',
   );
 
   /// Sample data is disabled. Always loads live data from API.
   static const bool demoMode = false;
 
+  /// Google Maps API key passed via compile-time environment variable.
+  /// Keep default empty so secrets are never committed to version control.
   static const String googleMapsApiKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
-    defaultValue: 'AIzaSyDiAL02T6B22dItH6Jndj0mqH_4zaup0bs',
+    defaultValue: '',
   );
 
   static const String appVersion = '1.0.0';
@@ -30,5 +37,11 @@ class AppConfig {
   static const Duration requestTimeout = Duration(seconds: 15);
   static const Duration demoLatency = Duration(milliseconds: 450);
 
-  static bool get hasGoogleMapsKey => googleMapsApiKey.isNotEmpty;
+  /// True when a key was passed directly, or when running on mobile where native
+  /// configuration (such as android/local.properties) supplies the key.
+  static bool get hasGoogleMapsKey =>
+      googleMapsApiKey.isNotEmpty ||
+      (!kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.android ||
+              defaultTargetPlatform == TargetPlatform.iOS));
 }

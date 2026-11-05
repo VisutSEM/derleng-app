@@ -14,13 +14,21 @@ class SettingsStore {
 
   AppSettings read() {
     final themeName = _prefs.getString(_themeKey);
+    final savedBaseUrl = _prefs.getString(_baseUrlKey);
+    // Ignore legacy loopback address if stored in preferences so real devices connect to the LAN IP
+    final baseUrl = (savedBaseUrl == null ||
+            savedBaseUrl.contains('127.0.0.1') ||
+            savedBaseUrl.contains('localhost'))
+        ? const AppSettings().apiBaseUrl
+        : savedBaseUrl;
+
     return AppSettings(
       themeMode: ThemeMode.values.firstWhere(
         (mode) => mode.name == themeName,
         orElse: () => ThemeMode.system,
       ),
       demoMode: false,
-      apiBaseUrl: _prefs.getString(_baseUrlKey) ?? const AppSettings().apiBaseUrl,
+      apiBaseUrl: baseUrl,
     );
   }
 

@@ -16,7 +16,7 @@ val localProperties = Properties().apply {
     }
 }
 val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY")
-    ?: "AIzaSyDiAL02T6B22dItH6Jndj0mqH_4zaup0bs"
+    ?: ""
 
 android {
     namespace = "com.example.frontend"
